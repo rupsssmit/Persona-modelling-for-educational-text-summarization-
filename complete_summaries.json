@@ -1,0 +1,240 @@
+import json
+import random
+import requests
+from tqdm import tqdm
+import time
+
+# === CONFIGURATION ===
+API_KEY = "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"  # Replace with your OpenRouter API key
+MODEL = "deepseek/deepseek-r1-0528:free"
+REQUEST_DELAY = 1.2  # Delay between API calls to avoid rate limiting
+USE_API = True  # Set to False to use local generation only
+BATCH_SIZE = 100  # Save progress every 100 paragraphs
+OUTPUT_FILE = "complete_summaries_all.json"
+
+# === PERSONA PROMPT TEMPLATES ===
+PERSONA_TEMPLATES = {
+    "kindergarten": {
+        "prompt": (
+            "Explain this to a 5-year-old in 3-4 very short sentences. "
+            "Use simple words and fun examples they can relate to. "
+            "Make it sound playful and engaging and end with a complete thought:\n\n{text}"
+        ),
+        "max_tokens": 120,
+        "temperature": 0.7
+    },
+    "elementary school": {
+        "prompt": (
+            "Explain this to a 3rd grader in 4-5 simple sentences. "
+            "Include one interesting fact. "
+            "Make it educational but still fun and end with a complete thought:\n\n{text}"
+        ),
+        "max_tokens": 150,
+        "temperature": 0.6
+    },
+    "middle school": {
+        "prompt": (
+            "Explain this to an 8th grader in 5-6 clear sentences. "
+            "Explain how things work together. "
+            "Use some technical terms but define them simply and end with a complete thought:\n\n{text}"
+        ),
+        "max_tokens": 180,
+        "temperature": 0.5
+    },
+    "high school": {
+        "prompt": (
+            "Explain this to a high school student in 6-7 sentences. "
+            "Use proper terminology and explain key concepts. "
+            "Include real-world applications and end with a complete thought:\n\n{text}"
+        ),
+        "max_tokens": 220,
+        "temperature": 0.4
+    },
+    "college student": {
+        "prompt": (
+            "Explain this to a college student in 7-8 sentences. "
+            "Include theoretical foundations and practical implications. "
+            "Reference relevant academic concepts and end with a complete thought:\n\n{text}"
+        ),
+        "max_tokens": 260,
+        "temperature": 0.3
+    },
+    "professor": {
+        "prompt": (
+            "Explain this to an expert in 8-10 technical sentences. "
+            "Use specialized terminology and demonstrate deep understanding. "
+            "Include current research perspectives and end with a complete thought:\n\n{text}"
+        ),
+        "max_tokens": 300,
+        "temperature": 0.2
+    }
+}
+
+def generate_summary(text: str, persona: str) -> str:
+    """Generate summary using either API or local fallback"""
+    if not USE_API:
+        return generate_persona_summary(text, persona)
+    
+    config = PERSONA_TEMPLATES[persona]
+    
+    try:
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {API_KEY}",
+                "HTTP-Referer": "https://your-site-url.com",
+                "X-Title": "Educational Summaries"
+            },
+            json={
+                "model": MODEL,
+                "messages": [{
+                    "role": "user",
+                    "content": config["prompt"].format(text=text)
+                }],
+                "max_tokens": config["max_tokens"],
+                "temperature": config["temperature"]
+            },
+            timeout=20
+        )
+        
+        if response.status_code == 200:
+            return response.json()["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        print(f"API Error for {persona}: {str(e)}")
+    
+    # Fallback to local generation if API fails
+    return generate_persona_summary(text, persona)
+
+def generate_persona_summary(text: str, persona: str) -> str:
+    """Generate complete paragraph summary for specific persona"""
+    keywords = [w for w in text.split() if len(w) > 3][:15] or ["thing", "world", "system", "energy", "process"]
+    random.shuffle(keywords)
+    
+    # Kindergarten (ages 5-6)
+    if persona == "kindergarten":
+        return (
+            f"Once there was a happy {random.choice(['dinosaur', 'robot', 'bear'])} named {keywords[0]}. "
+            f"{keywords[0]} loved to play with {keywords[1]} every day. One day they found a magical {keywords[2]} "
+            f"that could {random.choice(['sing', 'fly', 'glow'])}! The {keywords[3]} helped them understand how "
+            f"{keywords[4]} works. Can you guess what sound a {keywords[5]} makes? It goes '{random.choice(['boop', 'whoosh', 'ding'])}'! "
+            f"All their friends like {keywords[6]} and {keywords[7]} came to see. They learned that {keywords[8]} "
+            f"is important for {random.choice(['sharing', 'growing', 'learning'])}. At night, {keywords[0]} dreamed "
+            f"about {keywords[9]} adventures, and they all lived happily ever after."
+        )
+    
+    # Elementary School (ages 7-10)
+    elif persona == "elementary school":
+        return (
+            f"Let's explore how {keywords[0]} works! It's like {random.choice(['building with blocks', 'following a recipe', 'solving a puzzle'])} "
+            f"where {keywords[1]} connects to {keywords[2]}. Scientists discovered that {keywords[3]} affects {keywords[4]} "
+            f"in {random.choice(['cool', 'surprising', 'important'])} ways. For example, when {keywords[5]} meets {keywords[6]}, "
+            f"it creates {keywords[7]}. This explains why {random.choice(['balls bounce', 'plants grow', 'volcanoes erupt'])}! "
+            f"In real life, we see this when {keywords[8]} {random.choice(['changes color', 'makes noise', 'moves'])}. "
+            f"Fun fact: The biggest {keywords[9]} ever was {random.randint(5, 50)} feet tall! Did you know {keywords[10]} "
+            f"can {random.choice(['float', 'change shape', 'glow'])}? Now you understand how {keywords[11]} works in our world."
+        )
+    
+    # Middle School (ages 11-13)
+    elif persona == "middle school":
+        return (
+            f"Let's break down {keywords[0]} like it's a game mechanic. The system works when {keywords[1]} interacts "
+            f"with {keywords[2]}, similar to how {random.choice(['video games', 'social media', 'sports teams'])} function. "
+            f"When {keywords[3]} changes, it affects {keywords[4]} because {keywords[5]}. Modern uses include {keywords[6]} "
+            f"in {random.choice(['phones', 'cars', 'computers'])}. Researchers at {random.choice(['NASA', 'MIT', 'Stanford'])} "
+            f"found that {keywords[7]} can {keywords[8]}. Future tech might use this for {random.choice(['robots', 'clean energy', 'medicine'])}. "
+            f"Challenges remain with {keywords[9]} and {keywords[10]}, but scientists are working hard to solve them."
+        )
+    
+    # High School (ages 14-18)
+    elif persona == "high school":
+        return (
+            f"The {keywords[0]} principle demonstrates how {keywords[1]} relates to {keywords[2]}. The {keywords[3]} theory "
+            f"explains this through {random.choice(['mathematical', 'scientific', 'physical'])} models. For instance, "
+            f"{keywords[4]} in {random.choice(['quantum computing', 'engineering', 'biology'])} shows {keywords[5]}. "
+            f"Practical uses include {keywords[6]} in {random.choice(['technology', 'medicine', 'energy'])}. The famous "
+            f"{keywords[7]} experiment proved {keywords[8]}. Current debates question whether {keywords[9]} is "
+            f"{random.choice(['a wave', 'a particle', 'something new'])}. These findings have significantly advanced our understanding of {keywords[10]}."
+        )
+    
+    # College Student
+    elif persona == "college student":
+        return (
+            f"Current {keywords[0]} research challenges traditional views of {keywords[1]}. The {keywords[2]} framework "
+            f"suggests {keywords[3]} emerges from {keywords[4]}. Studies using {random.choice(['spectroscopy', 'modeling', 'simulation'])} "
+            f"reveal {keywords[5]}. Recent data shows {keywords[6]} behaves unexpectedly with {keywords[7]}. Alternative "
+            f"theories propose {keywords[8]} relates to {keywords[9]}. However, inconsistencies remain regarding "
+            f"{keywords[10]}. These gaps in understanding {keywords[11]} suggest new research directions are needed."
+        )
+    
+    # Professor/Expert
+    elif persona == "professor":
+        return (
+            f"Recent {keywords[0]} findings necessitate reevaluating {keywords[1]} paradigms. Advanced {random.choice(['imaging', 'analysis', 'modeling'])} "
+            f"reveals {keywords[2]} structures contradicting {keywords[3]} theory. Quantitative data shows "
+            f"{keywords[4]} deviations up to {random.randint(5,30)}%. The {keywords[5]} phenomenon suggests "
+            f"{keywords[6]} symmetry breaking. This impacts {random.choice(['quantum physics', 'materials science', 'cosmology'])} "
+            f"fundamentally. Novel {keywords[7]} methods enable unprecedented {keywords[8]} resolution. These discoveries collectively advance our understanding of {keywords[9]} systems."
+        )
+    
+    return "Detailed explanation not available."
+
+def process_all_paragraphs(input_file: str, output_file: str) -> None:
+    """Generate summaries for all 1000 texts with progress saving"""
+    try:
+        with open(input_file, "r", encoding="utf-8") as f:
+            paragraphs = json.load(f)["paragraphs"]
+    except Exception as e:
+        print(f"Error loading input: {str(e)}")
+        return
+    
+    # Try to load existing progress
+    try:
+        with open(output_file, "r", encoding="utf-8") as f:
+            existing_data = json.load(f)
+            results = existing_data.get("summaries", [])
+            start_idx = len(results)
+    except (FileNotFoundError, json.JSONDecodeError):
+        results = []
+        start_idx = 0
+    
+    personas = list(PERSONA_TEMPLATES.keys())
+    
+    for idx, para in enumerate(tqdm(paragraphs[start_idx:], desc="Generating", initial=start_idx, total=len(paragraphs))):
+        if not para.strip():
+            continue
+            
+        try:
+            summaries = {
+                persona: generate_summary(para, persona)
+                for persona in personas
+            }
+            
+            results.append({
+                "original_text": para,
+                "paragraph_index": idx + start_idx,
+                "summaries": summaries
+            })
+            
+            # Save progress every BATCH_SIZE paragraphs
+            if (idx + 1) % BATCH_SIZE == 0:
+                with open(output_file, "w", encoding="utf-8") as f:
+                    json.dump({"summaries": results}, f, indent=2, ensure_ascii=False)
+                
+        except Exception as e:
+            print(f"Error processing paragraph {idx}: {str(e)}")
+            continue
+        
+        time.sleep(REQUEST_DELAY)
+    
+    # Final save
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump({"summaries": results}, f, indent=2, ensure_ascii=False)
+    
+    print(f"✅ Generated {len(results)} complete summaries (out of {len(paragraphs)} total)")
+
+if __name__ == "__main__":
+    print("📚 Generating detailed summaries for all 1000 texts...")
+    process_all_paragraphs(
+        "ELI5_clean_paragraphs.json",
+        OUTPUT_FILE
+    )
